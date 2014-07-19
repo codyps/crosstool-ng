@@ -1,0 +1,39 @@
+--- a/src/mp_std_bits.cc	2013-05-14 19:30:32.095181024 -0500
++++ b/src/mp_std_bits.cc	2013-05-14 19:31:26.791844703 -0500
+@@ -25,6 +25,9 @@ site: http://bugseng.com/products/ppl/ .
+ #include "ppl-config.h"
+ #include "mp_std_bits.defs.hh"
+ 
++#if __GNU_MP_VERSION < 5 \
++  || (__GNU_MP_VERSION == 5 && __GNU_MP_VERSION_MINOR < 1)
++
+ const bool std::numeric_limits<mpz_class>::is_specialized;
+ const int std::numeric_limits<mpz_class>::digits;
+ const int std::numeric_limits<mpz_class>::digits10;
+@@ -70,3 +73,5 @@ const bool std::numeric_limits<mpq_class
+ const bool std::numeric_limits<mpq_class>::traps;
+ const bool std::numeric_limits<mpq_class>::tininess_before;
+ const std::float_round_style std::numeric_limits<mpq_class>::round_style;
++
++#endif
+--- a/src/mp_std_bits.defs.hh	2013-05-14 19:32:19.071841846 -0500
++++ b/src/mp_std_bits.defs.hh	2013-05-14 19:33:05.038506001 -0500
+@@ -38,6 +38,9 @@ void swap(mpz_class& x, mpz_class& y);
+ #endif // defined(PPL_DOXYGEN_INCLUDE_IMPLEMENTATION_DETAILS)
+ void swap(mpq_class& x, mpq_class& y);
+ 
++#if __GNU_MP_VERSION < 5 \
++  || (__GNU_MP_VERSION == 5 && __GNU_MP_VERSION_MINOR < 1)
++
+ namespace std {
+ 
+ #ifdef PPL_DOXYGEN_INCLUDE_IMPLEMENTATION_DETAILS
+@@ -164,6 +167,8 @@ public:
+ 
+ } // namespace std
+ 
++#endif
++
+ #include "mp_std_bits.inlines.hh"
+ 
+ #endif // !defined(PPL_mp_std_bits_defs_hh)
