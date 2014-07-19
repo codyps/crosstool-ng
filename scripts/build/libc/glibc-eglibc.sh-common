@@ -65,6 +65,63 @@ do_libc() {
     do_libc_backend libc_mode=final
 }
 
+# Usage: get_multilib_target <multilib-dir> <multilib-flags>
+get_multilib_target () {
+    local multi_dir="$1"
+    local multi_flags="$2"
+    local target="${CT_TARGET}"
+    local m32=false
+    local m31=false
+    local m64=false
+    local mx32=false
+    local mlittle=false
+    local mbig=flase
+
+    case "$multi_flags" in
+    *-m32*) m32=true;;
+    *-m64*) m64=true;;
+    *-m31*) m31=true;; # s390
+    *-mx32*) mx32=true ;; # x86_64
+
+    # powerpc
+    *-mbig*) mbig=true ;;
+    *-mlittle*) mlittle=true ;;
+
+    # mips
+    *-EL*) mlittle=true ;;
+    *-EB*) mbig=true ;;
+
+    esac
+
+    # TODO: actually run $CC with the multi_flags and check things out
+    # Right now we make some assumptions about bitness based on the target if
+    # _not_ overriden by multiflags. triplets in CT_TARGET that indicate they
+    # 64bit are assumed to not be hiding any funky configure options to change
+    # that. Similar for 32bit.
+
+    case "${CT_TARGET}" in
+    # FIXME: do we need to adjust the target for le vs be?
+    powerpc-*|powerpcle-*)     $m64 && target=${target/powerpc-/powerpc64-} ;;
+    powerpc64-*|powerpc64le-*) $m32 && target=${target/powerpc64-/powerpc-} ;;
+
+    x86_64-*gnux32)     $m64  && target=${target/%-gnux32/-gnu} ;;
+    x86_64-*)           $m32  && target=${target/x86_64-/i386-} ;;
+    x86_64-*)           $mx32 && target=${target/%-gnux32/-gnu} ;;
+
+    i[34567]86-*gnux32) die "Invalid target \"${CT_TARGET}\"" ;; # Nope
+    i[34567]86-*)       $mx32 && {
+                                        target=${target/%-gnu/-gnux32}
+                                        target=${target/i[34567]86-/x86_64-}
+                        } ;; # This is also very questionable (and probably wrong)
+    i[34567]86-*)       $m64 && target=${target/i[34567]86-/x86_64-} ;;
+
+    # TODO: mips, arm, spark
+
+    esac
+
+    echo "$target"
+}
+
 # This backend builds the C library once for each multilib
 # variant the compiler gives us
 # Usage: do_libc_backend param=value [...]
@@ -140,11 +197,14 @@ do_libc_backend() {
 
         CT_mkdir_pushd "${CT_BUILD_DIR}/build-libc-${libc_mode}${extra_dir//\//_}"
 
+        target=$(get_multilib_target "${multi_dir}" "${extra_flags}")
+
         do_libc_backend_once extra_dir="${extra_dir}"               \
                              extra_flags="${extra_flags}"           \
                              libc_headers="${libc_headers}"         \
                              libc_startfiles="${libc_startfiles}"   \
-                             libc_full="${libc_full}"
+                             libc_full="${libc_full}"               \
+                             target="${target}"
 
         CT_Popd
 
@@ -183,6 +243,7 @@ do_libc_backend() {
 #   libc_full           : Build full libc                       : bool      : n
 #   extra_flags         : Extra CFLAGS to use (for multilib)    : string    : (empty)
 #   extra_dir           : Extra subdir for multilib             : string    : (empty)
+#   target              : Build libc using this target (for multilib) : string : ${CT_TARGET}
 do_libc_backend_once() {
     local libc_headers
     local libc_startfiles
@@ -197,6 +258,7 @@ do_libc_backend_once() {
     local float_extra
     local endian_extra
     local arg
+    local target="${CT_TARGET}"
 
     for arg in "$@"; do
         eval "${arg// /\\ }"
@@ -354,7 +416,7 @@ do_libc_backend_once() {
     "${src_dir}/configure"                                          \
         --prefix=/usr                                               \
         --build=${CT_BUILD}                                         \
-        --host=${CT_TARGET}                                         \
+        --host=${target}                                            \
         --cache-file="$(pwd)/config.cache"                          \
         --without-cvs                                               \
         --disable-profile                                           \
