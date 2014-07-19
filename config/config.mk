@@ -51,7 +51,7 @@ config_files: $(STATIC_CONFIG_FILES) $(GEN_CONFIG_FILES)
 # Where to access to the source config files from
 config:
 	@$(ECHO) "  LN    config"
-	$(SILENT)ln -s $(CT_LIB_DIR)/config config
+	$(SILENT)ln -fs $(CT_LIB_DIR)/config config
 
 # Where to store the generated config files into
 config.gen:
