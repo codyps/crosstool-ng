@@ -77,6 +77,7 @@ export LDFLAGS         := @LDFLAGS@
 export LIBS            := @LIBS@
 export curses_hdr      := @ac_ct_curses_hdr@
 export gettext         := @gettext@
+export bashcompdir     := $(prefix)/etc/bash_completion.d/
 
 # config options to push down to kconfig
 KCONFIG:= @kconfig_options@
@@ -369,14 +370,15 @@ install-man: $(DESTDIR)$(mandir)$(MAN_SUBDIR)
 	@echo "  INST    '$(PROG_NAME).1.gz'"
 	@$(install) -m 644 docs/$(PROG_NAME).1.gz "$(DESTDIR)$(mandir)$(MAN_SUBDIR)"
 
-$(sort $(DESTDIR)$(bindir) $(DESTDIR)$(libdir) $(DESTDIR)$(docdir) $(DESTDIR)$(mandir)$(MAN_SUBDIR)):
+$(sort $(DESTDIR)$(bindir) $(DESTDIR)$(libdir) $(DESTDIR)$(docdir) $(DESTDIR)$(mandir)$(MAN_SUBDIR) $(DESTDIR)$(bashcompdir)):
 	@echo "  MKDIR   '$@/'"
 	@$(install) -m 755 -d "$@"
 
-install-post:
-	@echo
-	@echo "For auto-completion, do not forget to install '$(PROG_NAME).comp' into"
-	@echo "your bash completion directory (usually /etc/bash_completion.d)"
+install-post: $(DESTDIR)$(bashcompdir)
+	#@echo
+	#@echo "For auto-completion, do not forget to install '$(PROG_NAME).comp' into"
+	#@echo "your bash completion directory (usually /etc/bash_completion.d)"
+	$(install) -m 644 $(PROG_NAME).comp "$(DESTDIR)$(bashcompdir)"
 
 #--------------------------------------
 # Uninstall rules
