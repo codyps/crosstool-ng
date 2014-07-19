@@ -1,0 +1,9 @@
+#! /bin/sh
+H="$(dirname "$0")"
+I="$HOME/x-tools/ct-ng"
+
+rm -rf "$I" &&
+$H/bootstrap &&
+$H/configure --prefix="$I" &&
+make &&
+make install
