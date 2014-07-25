@@ -109,12 +109,12 @@ do_libc() {
     CT_DoExecLog CFG                                    \
     CC_FOR_BUILD="${CT_BUILD}-gcc"                      \
     CFLAGS_FOR_TARGET="${CT_TARGET_CFLAGS}"             \
-    AR=${CT_TARGET}-ar                                  \
-    RANLIB=${CT_TARGET}-ranlib                          \
+    AR_FOR_TARGET="${CT_BUILDTOOLS_PREFIX_DIR}/bin/${CT_TARGET}-gcc-ar" \
+    RANLIB_FOR_TARGET="${CT_BUILDTOOLS_PREFIX_DIR}/bin/${CT_TARGET}-gcc-ranlib" \
     "${CT_SRC_DIR}/newlib-${CT_LIBC_VERSION}/configure" \
         --host=${CT_BUILD}                              \
         --target=${CT_TARGET}                           \
-        --prefix=${CT_PREFIX_DIR}                       \
+        --prefix="${CT_PREFIX_DIR}"                     \
         "${newlib_opts[@]}"                             \
         "${CT_LIBC_NEWLIB_EXTRA_CONFIG_ARRAY[@]}"
 
