@@ -230,9 +230,6 @@ do_cc_core_backend() {
 
     do_cc_config
 
-    extra_config+=(--disable-libgomp)
-    extra_config+=(--disable-libmudflap)
-
     CT_DoLog DEBUG "Extra config passed: '${extra_config[*]}'"
 
     # Use --with-local-prefix so older gccs don't look in /usr/local (http://gcc.gnu.org/PR10532)
@@ -250,9 +247,10 @@ do_cc_core_backend() {
         --target=${CT_TARGET}                       \
         --prefix="${prefix}"                        \
         --with-local-prefix="${CT_SYSROOT_DIR}"     \
-        --disable-libmudflap                        \
         ${CC_CORE_SYSROOT_ARG}                      \
         "${extra_config[@]}"                        \
+        --disable-libmudflap                        \
+        --disable-libgomp                           \
         --enable-languages="${lang_list}"           \
         "${extra_user_config[@]}"
 
