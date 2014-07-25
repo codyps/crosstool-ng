@@ -186,7 +186,7 @@ do_cc_core_backend() {
     local tmp
     local -a host_libstdcxx_flags
     local -a extra_config
-    local -a core_LDFLAGS
+    local -a this_LDFLAGS
     local -a core_targets
     local -a extra_user_config
     local arg
@@ -223,159 +223,15 @@ do_cc_core_backend() {
             ;;
     esac
 
-    if [ "${CT_CC_GCC_HAS_PKGVERSION_BUGURL}" = "y" ]; then
-        # Bare metal delivers the core compiler as final compiler, so add version info and bugurl
-        extra_config+=("--with-pkgversion=${CT_PKGVERSION}")
-        [ -n "${CT_TOOLCHAIN_BUGURL}" ] && extra_config+=("--with-bugurl=${CT_TOOLCHAIN_BUGURL}")
-    fi
-
     if [ "${copy_headers}" = "y" ]; then
         CT_DoLog DEBUG "Copying headers to install area of bootstrap gcc, so it can build libgcc2"
         CT_DoExecLog ALL cp -a "${CT_HEADERS_DIR}" "${prefix}/${CT_TARGET}/include"
     fi
 
-    for tmp in ARCH ABI CPU TUNE FPU FLOAT; do
-        eval tmp="\${CT_ARCH_WITH_${tmp}}"
-        if [ -n "${tmp}" ]; then
-            extra_config+=("${tmp}")
-        fi
-    done
-    if [ "${CT_CC_CXA_ATEXIT}" = "y" ]; then
-        extra_config+=("--enable-__cxa_atexit")
-    else
-        extra_config+=("--disable-__cxa_atexit")
-    fi
-
-    core_LDFLAGS+=("${ldflags}")
-
-    # *** WARNING ! ***
-    # Keep this full if-else-if-elif-fi-fi block in sync
-    # with the same block in do_cc, below.
-    if [ "${build_staticlinked}" = "yes" ]; then
-        core_LDFLAGS+=("-static")
-        host_libstdcxx_flags+=("-static-libgcc")
-        host_libstdcxx_flags+=("-Wl,-Bstatic,-lstdc++")
-        host_libstdcxx_flags+=("-lm")
-        # Companion libraries are build static (eg !shared), so
-        # the libstdc++ is not pulled automatically, although it
-        # is needed. Shoe-horn it in our LDFLAGS
-        # Ditto libm on some Fedora boxen
-        core_LDFLAGS+=("-lstdc++")
-        core_LDFLAGS+=("-lm")
-    else
-        if [ "${CT_CC_STATIC_LIBSTDCXX}" = "y" ]; then
-            # this is from CodeSourcery arm-2010q1-202-arm-none-linux-gnueabi.src.tar.bz2
-            # build script
-            # INFO: if the host gcc is gcc-4.5 then presumably we could use -static-libstdc++,
-            #       see http://gcc.gnu.org/ml/gcc-patches/2009-06/msg01635.html
-            host_libstdcxx_flags+=("-static-libgcc")
-            host_libstdcxx_flags+=("-Wl,-Bstatic,-lstdc++,-Bdynamic")
-            host_libstdcxx_flags+=("-lm")
-        elif [ "${CT_COMPLIBS_SHARED}" != "y" ]; then
-            # When companion libraries are build static (eg !shared),
-            # the libstdc++ is not pulled automatically, although it
-            # is needed. Shoe-horn it in our LDFLAGS
-            # Ditto libm on some Fedora boxen
-            core_LDFLAGS+=("-lstdc++")
-            core_LDFLAGS+=("-lm")
-        fi
-    fi
-
-    if [ "${CT_CC_GCC_USE_GMP_MPFR}" = "y" ]; then
-        extra_config+=("--with-gmp=${complibs}")
-        extra_config+=("--with-mpfr=${complibs}")
-    fi
-    if [ "${CT_CC_GCC_USE_MPC}" = "y" ]; then
-        extra_config+=("--with-mpc=${complibs}")
-    fi
-    if [ "${CT_CC_GCC_USE_GRAPHITE}" = "y" ]; then
-        if [ "${CT_PPL}" = "y" ]; then
-            extra_config+=("--with-ppl=${complibs}")
-            # With PPL 0.11+, also pull libpwl if needed
-            if [ "${CT_PPL_NEEDS_LIBPWL}" = "y" ]; then
-                host_libstdcxx_flags+=("-L${complibs}/lib")
-                host_libstdcxx_flags+=("-lpwl")
-            fi
-        fi
-        if [ "${CT_ISL}" = "y" ]; then
-            extra_config+=("--with-isl=${complibs}")
-        fi
-        extra_config+=("--with-cloog=${complibs}")
-    elif [ "${CT_CC_GCC_HAS_GRAPHITE}" = "y" ]; then
-        extra_config+=("--with-ppl=no")
-        extra_config+=("--with-isl=no")
-        extra_config+=("--with-cloog=no")
-    fi
-    if [ "${CT_CC_GCC_USE_LTO}" = "y" ]; then
-        extra_config+=("--with-libelf=${complibs}")
-        extra_config+=("--enable-lto")
-    elif [ "${CT_CC_GCC_HAS_LTO}" = "y" ]; then
-        extra_config+=("--with-libelf=no")
-        extra_config+=("--disable-lto")
-    fi
-
-    if [ ${#host_libstdcxx_flags[@]} -ne 0 ]; then
-        extra_config+=("--with-host-libstdcxx=${host_libstdcxx_flags[*]}")
-    fi
-
-    if [ "${CT_CC_GCC_ENABLE_TARGET_OPTSPACE}" = "y" ]; then
-        extra_config+=("--enable-target-optspace")
-    fi
-
-    case "${CT_CC_GCC_LDBL_128}" in
-        y)  extra_config+=("--with-long-double-128");;
-        m)  ;;
-        "") extra_config+=("--without-long-double-128");;
-    esac
-
-    if [ "${CT_CC_GCC_BUILD_ID}" = "y" ]; then
-        extra_config+=( --enable-linker-build-id )
-    fi
-
-    case "${CT_CC_GCC_LNK_HASH_STYLE}" in
-        "") ;;
-        *)  extra_config+=( "--with-linker-hash-style=${CT_CC_GCC_LNK_HASH_STYLE}" );;
-    esac
-
-    case "${CT_CC_GCC_DEC_FLOATS}" in
-        "") ;;
-        *)  extra_config+=( "--enable-decimal-float=${CT_CC_GCC_DEC_FLOATS}" );;
-    esac
-
-    case "${CT_ARCH}" in
-        mips)
-            case "${CT_CC_GCC_mips_llsc}" in
-                y)  extra_config+=( --with-llsc );;
-                m)  ;;
-                *)  extra_config+=( --without-llsc );;
-            esac
-            case "${CT_CC_GCC_mips_synci}" in
-                y)  extra_config+=( --with-synci );;
-                m)  ;;
-                *)  extra_config+=( --without-synci );;
-            esac
-            if [ "${CT_CC_GCC_mips_plt}" ]; then
-                extra_config+=( --with-mips-plt )
-            fi
-            ;; # ARCH is mips
-    esac
+    do_cc_config
 
     extra_config+=(--disable-libgomp)
     extra_config+=(--disable-libmudflap)
-
-    [ "${CT_TOOLCHAIN_ENABLE_NLS}" != "y" ] && extra_config+=("--disable-nls")
-
-    [ "${CT_CC_GCC_DISABLE_PCH}" = "y" ] && extra_config+=("--disable-libstdcxx-pch")
-
-    if [ "${CT_CC_GCC_SYSTEM_ZLIB}" = "y" ]; then
-        extra_config+=("--with-system-zlib")
-    fi
-
-    # Some versions of gcc have a deffective --enable-multilib.
-    # Since that's the default, only pass --disable-multilib.
-    if [ "${CT_MULTILIB}" != "y" ]; then
-        extra_config+=("--disable-multilib")
-    fi
 
     CT_DoLog DEBUG "Extra config passed: '${extra_config[*]}'"
 
@@ -384,7 +240,7 @@ do_cc_core_backend() {
     CC_FOR_BUILD="${CT_BUILD}-gcc"                  \
     CFLAGS="${cflags}"                              \
     CXXFLAGS="${cflags}"                            \
-    LDFLAGS="${core_LDFLAGS[*]}"                    \
+    LDFLAGS="${this_LDFLAGS[*]}"                    \
     "${CT_SRC_DIR}/gcc-${CT_CC_VERSION}/configure"  \
         --build=${CT_BUILD}                         \
         --host=${host}                              \
@@ -594,36 +450,15 @@ do_cc_for_host() {
     CT_EndStep
 }
 
-#------------------------------------------------------------------------------
-# Build the final gcc
-# Usage: do_cc_backend param=value [...]
-#   Parameter     : Definition                          : Type      : Default
-#   host          : the host we run onto                : tuple     : (none)
-#   prefix        : the runtime prefix                  : dir       : (none)
-#   complibs      : the companion libraries prefix      : dir       : (none)
-#   cflags        : cflags to use                       : string    : (empty)
-#   ldflags       : ldflags to use                      : string    : (empty)
-#   lang_list     : the list of languages to build      : string    : (empty)
-#   build_manuals : whether to build manuals or not     : bool      : no
-do_cc_backend() {
-    local host
-    local prefix
-    local complibs
-    local cflags
-    local ldflags
-    local lang_list
-    local build_manuals
-    local -a host_libstdcxx_flags
-    local -a extra_config
-    local -a final_LDFLAGS
-    local tmp
-    local arg
-
-    for arg in "$@"; do
-        eval "${arg// /\\ }"
-    done
-
-    CT_DoLog EXTRA "Configuring gcc"
+# Taks no arguments, but uses:
+#
+# Inputs:
+#  lang_list
+#
+# Outputs:
+#  extra_config         an array of configuration options
+#  this_LDFLAGS
+do_cc_config() {
 
     # Enable selected languages
     extra_config+=("--enable-languages=${lang_list}")
@@ -640,6 +475,7 @@ do_cc_backend() {
         extra_config+=("--with-pkgversion=${CT_PKGVERSION}")
         [ -n "${CT_TOOLCHAIN_BUGURL}" ] && extra_config+=("--with-bugurl=${CT_TOOLCHAIN_BUGURL}")
     fi
+
     case "${CT_CC_GCC_SJLJ_EXCEPTIONS}" in
         y)  extra_config+=("--enable-sjlj-exceptions");;
         m)  ;;
@@ -690,13 +526,13 @@ do_cc_backend() {
         fi
     fi
 
-    final_LDFLAGS+=("${ldflags}")
+    this_LDFLAGS+=("${ldflags}")
 
     # *** WARNING ! ***
     # Keep this full if-else-if-elif-fi-fi block in sync
     # with the same block in do_cc_core, above.
     if [ "${CT_STATIC_TOOLCHAIN}" = "y" ]; then
-        final_LDFLAGS+=("-static")
+        this_LDFLAGS+=("-static")
         host_libstdcxx_flags+=("-static-libgcc")
         host_libstdcxx_flags+=("-Wl,-Bstatic,-lstdc++")
         host_libstdcxx_flags+=("-lm")
@@ -704,8 +540,8 @@ do_cc_backend() {
         # the libstdc++ is not pulled automatically, although it
         # is needed. Shoe-horn it in our LDFLAGS
         # Ditto libm on some Fedora boxen
-        final_LDFLAGS+=("-lstdc++")
-        final_LDFLAGS+=("-lm")
+        this_LDFLAGS+=("-lstdc++")
+        this_LDFLAGS+=("-lm")
     else
         if [ "${CT_CC_STATIC_LIBSTDCXX}" = "y" ]; then
             # this is from CodeSourcery arm-2010q1-202-arm-none-linux-gnueabi.src.tar.bz2
@@ -720,8 +556,8 @@ do_cc_backend() {
             # the libstdc++ is not pulled automatically, although it
             # is needed. Shoe-horn it in our LDFLAGS
             # Ditto libm on some Fedora boxen
-            final_LDFLAGS+=("-lstdc++")
-            final_LDFLAGS+=("-lm")
+            this_LDFLAGS+=("-lstdc++")
+            this_LDFLAGS+=("-lm")
         fi
     fi
 
@@ -752,8 +588,10 @@ do_cc_backend() {
     fi
     if [ "${CT_CC_GCC_USE_LTO}" = "y" ]; then
         extra_config+=("--with-libelf=${complibs}")
+        extra_config+=("--enable-lto")
     elif [ "${CT_CC_GCC_HAS_LTO}" = "y" ]; then
         extra_config+=("--with-libelf=no")
+        extra_config+=("--disable-lto")
     fi
 
     if [ ${#host_libstdcxx_flags[@]} -ne 0 ]; then
@@ -833,12 +671,44 @@ do_cc_backend() {
         extra_config+=("--with-system-zlib")
     fi
 
-
     # Some versions of gcc have a deffective --enable-multilib.
     # Since that's the default, only pass --disable-multilib.
     if [ "${CT_MULTILIB}" != "y" ]; then
         extra_config+=("--disable-multilib")
     fi
+}
+
+#------------------------------------------------------------------------------
+# Build the final gcc
+# Usage: do_cc_backend param=value [...]
+#   Parameter     : Definition                          : Type      : Default
+#   host          : the host we run onto                : tuple     : (none)
+#   prefix        : the runtime prefix                  : dir       : (none)
+#   complibs      : the companion libraries prefix      : dir       : (none)
+#   cflags        : cflags to use                       : string    : (empty)
+#   ldflags       : ldflags to use                      : string    : (empty)
+#   lang_list     : the list of languages to build      : string    : (empty)
+#   build_manuals : whether to build manuals or not     : bool      : no
+do_cc_backend() {
+    local host
+    local prefix
+    local complibs
+    local cflags
+    local ldflags
+    local lang_list
+    local build_manuals
+    local -a host_libstdcxx_flags
+    local -a extra_config
+    local -a this_LDFLAGS
+    local tmp
+    local arg
+
+    for arg in "$@"; do
+        eval "${arg// /\\ }"
+    done
+
+    CT_DoLog EXTRA "Configuring gcc"
+    do_cc_config
 
     CT_DoLog DEBUG "Extra config passed: '${extra_config[*]}'"
 
@@ -846,7 +716,7 @@ do_cc_backend() {
     CC_FOR_BUILD="${CT_BUILD}-gcc"                  \
     CFLAGS="${cflags}"                              \
     CXXFLAGS="${cflags}"                            \
-    LDFLAGS="${final_LDFLAGS[*]}"                   \
+    LDFLAGS="${this_LDFLAGS[*]}"                    \
     CFLAGS_FOR_TARGET="${CT_TARGET_CFLAGS}"         \
     CXXFLAGS_FOR_TARGET="${CT_TARGET_CFLAGS}"       \
     LDFLAGS_FOR_TARGET="${CT_TARGET_LDFLAGS}"       \
